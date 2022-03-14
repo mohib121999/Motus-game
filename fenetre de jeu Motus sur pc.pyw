@@ -1,0 +1,362 @@
+
+################################################################################
+#                                                                              #
+#                                 Motus                                        #                            
+#                               Motus game                                     #
+#                           language : Python                                  #
+#                       by   MOHIB     BEKALTI                                 #
+#                            date : 12/05/2021                                 #
+#                                                                              #
+################################################################################
+from tkinter import *
+from random import *
+
+
+#-------------------------------------------------------------------------------
+def NouvellePartie(fichierMots):
+    """Appelle la fonction de chargement de mots.
+       Crée l'espace de jeu.
+       Appel l'initialisation des grilles de loto.
+       Donne la main au joueur 1 par défaut."""
+    global tableauDeCanevas,airDessin
+    
+    Charger(fichierMots)
+
+    airDessin.destroy() # A chaque nouvelle partie on supprime cette Frame contenant les canvas
+    airDessin = Frame(fen) # pour en recréer une autre en fonction du nouveau nombre de lettres
+    # Remplissage du tableau de canvas
+    tableauDeCanevas = []
+    for ligne in range(6):
+        tabCanvasLigne = []
+        for colonne in range(nbrLettres):
+            canvas = Canvas(airDessin,bg='blue',height=50,width=50,borderwidth=5,relief='ridge')
+            canvas.grid(row=ligne,column=colonne)
+            tabCanvasLigne.append(canvas)
+        tableauDeCanevas.append(tabCanvasLigne)
+    airDessin.grid(row=1,column=1)    
+
+    
+    NouveauMot() 
+
+def Charger(fichier_mots):
+    """Charge le fichier de mots correspondant au nombre de lettres désiré
+       dans une liste primaire qui permettra de vérifier si le mot tapé existe,
+       et dans une liste secondaire de laquelle il sera retiré pour éviter les répétitions."""
+    global listeMots, listeSecondaire,nbrLettres
+
+    fichier = open(fichier_mots,'r')
+    listeMots = []
+    while 1:
+        mot = fichier.readline()
+        if mot == "":
+            break
+        listeMots.append(mot[:-1])
+    nbrLettres = len(listeMots[0])
+    listeSecondaire = listeMots[:]
+
+    fichier.close()
+
+def SelectionMot():
+    """Sélectionne un mot au hazard dans la liste de mots chargé et
+    le retire de la liste secondaire pour éviter les répétitions."""
+    global listeSecondaire
+
+    hazard = randrange(0,len(listeSecondaire))
+    motA_Trouver = listeSecondaire[hazard]
+    del listeSecondaire[hazard]
+    if not listeSecondaire:
+        listeSecondaire = listeMots[:]
+
+    return motA_Trouver
+
+#-------------------------------------------------------------------------------
+def NouveauMot():
+    """Initialisation de toutes les variables de la grille de jeu lors de la recherche d'un nouveau mot."""
+
+    global enigme,proposition,ligneCourante,colonneCourante,lettresBienPlacees,tableauDePropositions
+    
+    enigme = SelectionMot() # le mot à trouver
+    print(enigme)
+
+    proposition = '' # chaque lettre tappée viendra s'ajouter a cette chaîne de caractères 
+    ligneCourante, colonneCourante = 0, 0 # coordonnées permettant de se déplacer dans le tableau de canvas
+
+    # tableau qui contiendra toutes les lettres bien placées depuis le debut de la recherche
+    lettresBienPlacees = ['']*nbrLettres
+    # tableau qui contiendra toutes les propositions faites depuis le debut de la recherche
+    tableauDePropositions = []
+
+    EffaceCanevas() # On efface tous les canvas
+    lettresBienPlacees[0] = enigme[0] # la 1ère lettre du mot à trouver est toujours considérée comme bonne
+    AttenteProposition() # on l'affiche et on donne la main au joueur
+
+def EffaceCanevas():
+    """Efface et remet en bleu tous les canvas présents dans l'air de jeu."""
+    for ligne in range(6):
+        for colonne in range(nbrLettres):
+            tableauDeCanevas[ligne][colonne].delete(ALL)
+            tableauDeCanevas[ligne][colonne].configure(bg="blue")    
+
+#-------------------------------------------------------------------------------
+def AttenteProposition():
+    """Mise à jour de la ligne courante de la grille de jeu.
+       Toutes les lettres bien placées au fur et à mesure des essaies
+       ont été mémorisées dans lettresBienPlacees[], c'est ici qu'on les affiche.
+       Liaison du clavier sur fonction LettreTapee."""
+    
+    compt = 0
+    while compt < len(lettresBienPlacees) :
+        couleur = 'blue'
+        if lettresBienPlacees[compt] != '':
+            couleur = 'red'
+        tableauDeCanevas[ligneCourante][compt].delete(ALL)
+        tableauDeCanevas[ligneCourante][compt].create_text(30,30,font='Century 28 bold ',text=lettresBienPlacees[compt])
+        tableauDeCanevas[ligneCourante][compt].configure(bg=couleur)
+        compt += 1
+
+    fen.bind('<Key>',LettreTapee)
+
+def LettreTapee(event):
+    """Récupération de la lettre tapée(conversion en majuscule) et constitution de la proposition du joueur.
+       Vérification de la position ."""
+    global ligneCourante,colonneCourante,proposition,tableauDePropositions,correspondance
+
+    tableauDeCanevas[ligneCourante][colonneCourante].delete(ALL)
+
+    c = str.upper(event.char)
+    if str.isalpha(c):
+        # si la touche clavier est une lettre elle est ajoutée à la chaîne de caractères 'proposition' et l'indice colonneCourante est incrémenté
+        proposition += c
+        # et ce tant que celui-ci est inférieur aux nombres de lettres du mot recherché
+        if colonneCourante < nbrLettres:
+            tableauDeCanevas[ligneCourante][colonneCourante].create_text(30,30,font='Century 28 bold ',text=c)
+            tableauDeCanevas[ligneCourante][colonneCourante].configure(bg='purple')
+            colonneCourante += 1
+        # le nombre de lettres est atteint
+        if colonneCourante == nbrLettres:
+            correspondance = []         # contient les couples [lettre de l'essaie,chiffre correspondant] où chiffre correspondant pourra prendre
+            for lettre in proposition:  # 3 valeurs : 0 si lettre absente ; 1 si bien placée ; 2 si mal placée
+                correspondance.append([lettre,0]) # par défaut on considère toutes les lettre mal placées
+            tableauDePropositions.append(correspondance) # on ajoute cette correspondance au tableau total
+
+            if proposition not in listeMots: # on vérifie si le mot entré est correct
+                proposition = '' # dans le cas contraire on reinit la proposition 
+                MajPropositions() # on réaffiche toutes les propositions
+               # LaMainPasse()    # et la main passe
+                if ligneCourante != 5: # si on n'est pas sur la dernière ligne 
+                    ligneCourante += 1 # on descend
+                    AttenteProposition() # et on attend la futur proposition
+                else:
+                    AttenteProposition() # sinon on ne descend pas mais 
+                    Aide()   # on affiche une lettre non bien placée jusqu'à présent
+                colonneCourante = 0 
+                return
+            # le mot existe mais est-ce le bon ? la Verification nous renvera 'False' dans la négative
+            elif not Verification(correspondance) : 
+                proposition = '' # auquel cas on reinit la proposition 
+                MajPropositions() # on réaffiche toutes les propositions           
+                if ligneCourante != 5: # si on n'est pas sur la dernière ligne 
+                    ligneCourante += 1 # on descend
+                    AttenteProposition() # et on attend la futur proposition
+                else: # si on n'est pas sur la dernière ligne 
+                    #LaMainPasse() # la main passe
+                    AttenteProposition() #on attend la futur proposition
+                    Aide() # on affiche une lettre non bien placée jusqu'à présent
+                colonneCourante = 0
+                return
+
+#-------------------------------------------------------------------------------
+def Verification(correspondance):
+    """Algorithme principal
+      Pour des raisons d'affichage et sonore le mot tapé est entré dans un tableau
+      de correspondance du type :
+      [['lettre1',chiffre correspondant],['lettre2',chiffre correspondant],[]...]
+      où chiffre correspondra à une couleur et un effet sonore lors de l'animation de la proposition.
+
+      Le mot recherché(enigme) est transformé en liste : resteEnigme
+
+      Dans un premier temps on compare les lettres du mot tapé et du mot à découvrir 2 à 2.
+      Si il y a correspondance, le chiffre de ces lettres passe à 1 dans 'correspondance' et on les remplace dans la liste resteEnigme
+      par des espaces pour signifier au reste de l'algorithme que la lettre n'est plus à prendre en compte et pour conserver le même
+      nombre de lettres et éviter ainsi les décalage.
+      On en profite pour remplir le tableau des lettres bien placées 'lettresBienPlacees' et on incrémente
+      une variable locale 'lettresBienTapees'.Si celle-ci équivaut au nombre de lettres de l'enigme la solution est trouvée.
+      Dans le cas contraire on compare succesivement chaque lettre de 'correspondance' dont le chiffre est different de 1 avec toutes celles restant
+      dans resteEnigme.Lorsqu'il y a correspondance le chiffre de cette lettre passe à 2 et elle est remplacée par un espace dans resteEnigme.
+      On a ainsi trouvé toutes les lettres présentes mais mal placées."""
+
+    fen.unbind('<Key>')
+
+    resteEnigme = list(enigme)
+
+    compt = 0
+    lettresBienTapees = 0
+    while(compt < nbrLettres):
+        #Lettres bien placées
+        if correspondance[compt][0] == resteEnigme[compt]:
+            correspondance[compt][1] = 1
+            resteEnigme[compt] = " "
+            lettresBienPlacees[compt] = enigme[compt]
+            lettresBienTapees += 1
+        compt += 1
+
+    # Le mot est trouvé
+    if lettresBienTapees == nbrLettres:
+        MotTrouve()
+        return True # On présice à la méthode appelante 'LettreTapee' que le mot est trouvé
+
+    # Lettres présentes mais mal placées
+    for couple in correspondance:
+        if couple[0] == 1:
+            continue
+        for lettre in resteEnigme:
+            if couple[1] == lettre:
+                couple[1] = 1
+                resteEnigme[resteEnigme.index(lettre)] = " "
+                break
+
+    # On anime chaque lettre de la proposition 
+    for indexColonne in range(nbrLettres):
+         fen.after(350,AnimationProposition(indexColonne,correspondance[indexColonne][0],correspondance[indexColonne][1]))
+         
+    return False # On présice à la méthode appelante 'LettreTapee' que le mot n'est pas trouvé 
+
+#-------------------------------------------------------------------------------
+def AnimationProposition(indexColonne=None,lettre=None,couleur=None):
+    """Fonction qui écrie une lettre dans le canvas de coordonnée [ligneCourante][colonneCourante] dans le tableau de canvas."""
+
+    # On retrouve ici les 3 actions distinctes à effectuer pour chaque lettre de la proposition du joueur
+    if couleur == 1:
+        couleur = 'green'
+    elif couleur == 2:
+        couleur = 'yellow'
+    elif couleur == 0:
+        couleur = 'blue'
+
+    tableauDeCanevas[ligneCourante][indexColonne].configure(bg=couleur)
+    tableauDeCanevas[ligneCourante][indexColonne].create_text(30,30,font='Century 28 bold ',text=lettre)
+    fen.update()
+
+#----------------------------------------------------------------------------
+def MajPropositions():
+    """Toutes les propositions ont été morisées dans le tableau tableauDePropositions.
+    C'est ici qu'elles sont affichées.Si leur nombre dépasse 5, on copie le tableau sur lui même en enlevant la 1ère."""
+    global tableauDePropositions
+
+    EffaceCanevas()
+
+    if len(tableauDePropositions) == 6:
+        tableauDePropositions = tableauDePropositions[1:]
+
+    ligne = 0
+    for proposition in tableauDePropositions:
+        for colonne in range(nbrLettres):
+            if proposition[colonne][1] == 1:
+                couleur = 'red'
+            elif proposition[colonne][1] == 2:
+                couleur = 'yellow'
+            elif proposition[colonne][1] == 0:
+                couleur = 'blue'
+            tableauDeCanevas[ligne][colonne].create_text(30,30,font='Century 28 bold ',text=proposition[colonne][0])
+            tableauDeCanevas[ligne][colonne].configure(bg=couleur)
+        ligne += 1
+
+#-------------------------------------------------------------------------------
+def Aide():
+    """Appelée en guise d'aide sur la dernière ligne de jeu pour afficher
+    la première lettre non trouvée après que la main soit passée."""
+
+    fen.unbind('<Key>')    
+    compt = 0
+    while compt < nbrLettres:
+        if lettresBienPlacees[compt] == '':
+            lettresBienPlacees[compt] = enigme[compt]
+            for j in range(5):
+                fen.after(100,AnimationAide(compt,lettresBienPlacees[compt],'green'))
+                fen.after(100,AnimationAide(compt,'','blue'))
+
+            tableauDeCanevas[ligneCourante][compt].configure(bg='red')
+            tableauDeCanevas[ligneCourante][compt].create_text(30,30,font='Century 28 bold ',text=lettresBienPlacees[compt])
+            break
+        compt += 1
+
+    fen.bind('<Key>',LettreTapee)
+
+def AnimationAide(indexColonne,lettre,couleur):
+    tableauDeCanevas[ligneCourante][indexColonne].configure(bg=couleur)
+    tableauDeCanevas[ligneCourante][indexColonne].create_text(30,30,font='Century 28 bold ',text=lettre)
+    fen.update()
+
+#-------------------------------------------------------------------------------
+def MotTrouve():
+    """Mise à jour du score et animation du mot trouvé."""
+    fen.unbind('<Key>')
+
+    for indexColonne in range(nbrLettres):
+        fen.after(350,AnimationProposition(indexColonne,correspondance[indexColonne][0],correspondance[indexColonne][1]))
+
+
+    for j in range(3):
+        for i in range(nbrLettres):
+            fen.after(50,AnimationMotTrouve(i,'green'))
+        for i in range(nbrLettres):
+            fen.after(50,AnimationMotTrouve(i,'red'))
+
+
+def AnimationMotTrouve(indexColonne,couleur):
+    tableauDeCanevas[ligneCourante][indexColonne].configure(bg='green')
+    fen.update()
+  
+#-------------------------------------------------------------------------------
+def Presentation():
+    """Ecrit le mot "MOTUX" sur toutes les lignes de la grille de jeu instanciation de 2 GrilleLoto."""
+    global airDessin,equipes
+
+    motus = "motus"
+    tableauDeCanevas = []
+    nbrLettres = 5
+    airDessin = Frame(fen)
+
+    tableauDeCanevas = []
+    for x in range(5):
+        tabCanvasLigne = []
+        for y in range(nbrLettres):
+            canvas = Canvas(airDessin,bg='blue',height=50,width=50,borderwidth=5,relief='ridge')
+            canvas.create_text(30,30,font='Century 28 bold ',text=motus[y])            
+            canvas.grid(row=x,column=y)
+            tabCanvasLigne.append(canvas)
+        tableauDeCanevas.append(tabCanvasLigne)
+
+    airDessin.grid(row=1,column=1)
+
+#-------------------------------------------------------------------------------
+def Quitter():
+    fen.quit()    
+    fen.destroy()
+
+#-------------------------------------------------------------------------------
+fen = Tk()
+fen.title("Motus game ")
+fen.resizable(0,0)
+barreMenu = Menu(fen ,bg='#3e646c' )
+options=Menu(barreMenu ,bg='#3e646c')
+options1=Menu(barreMenu,bg='#3e646c')
+options2=Menu(barreMenu,bg='#3e646c')
+barreMenu.add_cascade(label="Option",menu=options)
+options.add_command(label = "Mots de 5 lettres",command=lambda : NouvellePartie("mots5.txt"))
+options.add_command(label = "Mots de 6 lettres",command=lambda : NouvellePartie("mots6.txt"))
+options.add_command(label = "Mots de 7 lettres",command=lambda : NouvellePartie("mots7.txt"))
+options.add_command(label = "Mots de 8 lettres",command=lambda : NouvellePartie("mots8.txt"))
+barreMenu.add_cascade(label="Quite",menu=options1)
+options1.add_command(label="Quite",command=Quitter)
+barreMenu.add_cascade(label="help",menu=options2)
+options2.add_command(label ="help",command=Quitter)
+fen.config(menu=barreMenu)
+
+l = Label(fen, text ='WELCOME to motus game').grid(row =15 , column = 1, columnspan = 2, padx = 1, pady = 1)
+button = Button(fen, text = 'Play again',width = 32, height = 3, bd = 7, bg = '#3e646c' ).grid(row =10 , column = 1, columnspan = 2, padx = 1, pady = 1)
+
+
+
+Presentation()
+fen.mainloop()
